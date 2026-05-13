@@ -1,0 +1,32 @@
+version: "3.8"
+
+services:
+  libraryit-server:
+    build: .
+    container_name: libraryit-server
+    ports:
+      - "1445:445"
+      - "1139:139"
+      - "1137:137/udp"
+      - "1138:138/udp"
+    volumes:
+      - ./data/ebooks:/libraryit/ebooks
+      - ./data/papers:/libraryit/papers
+      - ./data/sourcecode:/libraryit/sourcecode
+      - ./data/docs:/libraryit/docs
+      - ./logs:/logs
+      - samba_state:/var/lib/samba
+    restart: unless-stopped
+
+  libraryit-logger:
+    image: alpine:3.20
+    container_name: libraryit-logger
+    depends_on:
+      - libraryit-server
+    volumes:
+      - ./logs:/logs
+    command: sh -c "touch /logs/libraryit.log && tail -n 0 -F /logs/libraryit.log"
+    restart: unless-stopped
+
+volumes:
+  samba_state:
