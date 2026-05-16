@@ -11,6 +11,7 @@
   - [Penjelasan Umum](#penjelasan-umum)
   - [File `kenz_rescue.c`](#file-kenz_rescuec)
   - [Dokumentasi](#dokumentasi)
+- [Soal 2: The Game](#soal-2-poke-game)
 
 </details>
 
@@ -500,7 +501,7 @@ Fungsi ini melakukan validasi argumen, setup environment, menyimpan source root,
 ![alt text](assets/soal_1/2.jpg)
 
 
-
+# Soal 2 - Poke MOO
 
 
 
