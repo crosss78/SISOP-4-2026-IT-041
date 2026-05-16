@@ -1,4 +1,4 @@
-# SISOP-3-2026-IT-041
+# SISOP-4-2026-IT-041
 
 | Nama                   | NRP        |
 | ---------------------- | ---------- |
@@ -9,6 +9,7 @@
 
 - [Soal 1: The Game](#soal-1-the-game)
   - [Penjelasan Umum](#penjelasan-umum)
+  - [File `kenz_rescue.c`](#file-kenz_rescuec)
   - [Dokumentasi](#dokumentasi)
 
 </details>
@@ -17,7 +18,7 @@
 
 ## Penjelasan Umum
 
-Pada soal ini, diminta untuk membuat program **FUSE** dalam bahasa C bernama `kenz_rescue.c` yang bekerja sebagai filesystem cermin (*passthrough*) dari folder `amba_files/` ke directory mount `mnt/`. File asli di source tidak boleh berubah, tetapi di sisi mount harus muncul satu file virtual tambahan bernama `tujuan.txt`.
+Pada soal ini, download terlebih dahulu file zip (`amva_files.zip`) yang telah disediakan. Setelah mendownloadnya, ekstrak filenya, hapus file zipnya. Kemudian, diminta untuk membuat program **FUSE** dalam bahasa C bernama `kenz_rescue.c` yang bekerja sebagai filesystem cermin (*passthrough*) dari folder `amba_files/` ke directory mount `mnt/`. File asli di source tidak boleh berubah, tetapi di sisi mount harus muncul satu file virtual tambahan bernama `tujuan.txt`.
 
 File virtual tersebut tidak disimpan secara fisik di disk, melainkan dibangkitkan secara *on-the-fly* ketika dibaca. Isi file virtual diperoleh dengan menggabungkan fragmen koordinat yang terdapat pada file `1.txt` sampai `7.txt`.
 
@@ -38,7 +39,7 @@ Secara umum sistem ini memiliki dua bagian utama:
 
 File ini terbagi menjadi beberapa bagian, yaitu sebagai berikut.
 
-## 1. Header / library yang digunakan
+### 1. Header / library yang digunakan
 
 Bagian pertama berisi header yang diperlukan untuk menjalankan program FUSE, membaca direktori, membuka file, memproses path, serta menangani informasi waktu dan tipe data sistem.
 
@@ -62,7 +63,7 @@ Bagian pertama berisi header yang diperlukan untuk menjalankan program FUSE, mem
 
 ---
 
-## 2. Variabel Global
+### 2. Variabel Global
 
 Variabel ini digunakan agar seluruh callback `FUSE` dapat mengetahui lokasi asli dari source filesystem.
 
@@ -71,7 +72,7 @@ static char *g_source_root = NULL;
 ```
 ---
 
-## 3. Build Source Path
+### 3. Build Source Path
 Fungsi berikut digunakan untuk membentuk path asli menuju source file.
 ```
 static void build_source_path(char *dst, size_t dstsz, const char *path)
@@ -85,7 +86,7 @@ static void build_source_path(char *dst, size_t dstsz, const char *path)
 ```
 ---
 
-## 4. Fungsi `is_virtual_tujuan`
+### 4. Fungsi `is_virtual_tujuan`
 
 Fungsi berikut digunakan untuk mengecek apakah file yang sedang diakses adalah file virtual `tujuan.txt`.
 
@@ -98,7 +99,7 @@ static int is_virtual_tujuan(const char *path)
 
 ---
 
-## 5. Fungsi `append_buf`
+### 5. Fungsi `append_buf`
 
 Program menggunakan buffer dinamis untuk menyusun isi file virtual karena isi `tujuan.txt` dibangun dari banyak file, ukuran akhirnya tidak diketahui di awal sehingga dibutuhkan buffer dinamis.
 ```
@@ -127,7 +128,7 @@ static void append_buf(char **buf, size_t *len, size_t *cap, const char *data, s
 
 ---
 
-## 7. Fungsi `build_tujuan_content`
+### 6. Fungsi `build_tujuan_content`
 
 Fungsi ini digunakan untuk membuat isi file virtual `tujuan.txt` secara *on-the-fly* dengan menggabungkan fragmen `KOORD:` dari file `1.txt` sampai `7.txt`.
 
@@ -173,7 +174,7 @@ Fungsi ini membaca file `1.txt` sampai `7.txt`, mengambil bagian `KOORD:`, lalu 
 
 ---
 
-## 8. Callback `getattr`
+### 7. Callback `getattr`
 
 Fungsi ini digunakan untuk mengambil informasi metadata file seperti ukuran file, permission, dan tipe file.
 
@@ -211,7 +212,7 @@ static int kenz_getattr(const char *path, struct stat *stbuf)
 
 ---
 
-## 9. Callback `readdir`
+### 8. Callback `readdir`
 
 Fungsi ini digunakan untuk membaca isi directory pada mount filesystem.
 
@@ -271,20 +272,7 @@ static int kenz_readdir(const char *path, void *buf,
 
 ---
 
-## 4. Fungsi `is_virtual_tujuan`
-
-Fungsi berikut digunakan untuk mengecek apakah file yang sedang diakses adalah file virtual `tujuan.txt`.
-
-```
-static int is_virtual_tujuan(const char *path)
-{
-    return strcmp(path, "/tujuan.txt") == 0;
-}
-```
-
----
-
-## 10. Callback `open`
+### 9. Callback `open`
 
 Fungsi ini digunakan untuk membuka file yang diakses user.
 
@@ -312,7 +300,7 @@ static int kenz_open(const char *path,
 
 ---
 
-## 11. Callback `read`
+### 10. Callback `read`
 
 Fungsi ini digunakan untuk membaca isi file.
 
@@ -357,7 +345,7 @@ static int kenz_read(const char *path,
 
 ---
 
-## 12. Callback `release`
+### 11. Callback `release`
 
 Fungsi ini digunakan untuk menutup file descriptor setelah file selesai digunakan.
 
@@ -377,20 +365,7 @@ static int kenz_release(const char *path,
 
 ---
 
-## 4. Fungsi `is_virtual_tujuan`
-
-Fungsi berikut digunakan untuk mengecek apakah file yang sedang diakses adalah file virtual `tujuan.txt`.
-
-```
-static int is_virtual_tujuan(const char *path)
-{
-    return strcmp(path, "/tujuan.txt") == 0;
-}
-```
-
----
-
-## 13. Callback `access`
+### 12. Callback `access`
 
 Fungsi ini digunakan untuk mengecek hak akses file.
 
@@ -412,7 +387,7 @@ static int kenz_access(const char *path, int mask)
 
 ---
 
-## 14. Fungsi `setup_environment`
+### 13. Fungsi `setup_environment`
 
 Fungsi ini digunakan untuk melakukan pengecekan awal sebelum filesystem dijalankan.
 
@@ -440,7 +415,7 @@ Fungsi ini memastikan source tersedia dan membuat mount directory jika belum ada
 
 ---
 
-## 15. Struktur Operasi FUSE
+### 14. Struktur Operasi FUSE
 
 Seluruh callback FUSE didaftarkan pada struktur berikut.
 
@@ -457,7 +432,7 @@ static struct fuse_operations kenz_oper = {
 
 ---
 
-## 16. Fungsi `main`
+### 15. Fungsi `main`
 
 Fungsi `main()` merupakan entry point utama program.
 
@@ -520,7 +495,9 @@ Fungsi ini melakukan validasi argumen, setup environment, menyimpan source root,
 
 ## Dokumentasi
 
+![alt text](assets/soal_1/1.jpg)
 
+![alt text](assets/soal_1/2.jpg)
 
 
 
