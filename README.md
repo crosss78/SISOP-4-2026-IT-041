@@ -7,11 +7,16 @@
 <details>
 <summary>Daftar Isi</summary>
 
-- [Soal 1: The Game](#soal-1-the-game)
+- [Soal 1: Save Asisten Kenz](#soal-1---save-asisten-kenz)
   - [Penjelasan Umum](#penjelasan-umum)
   - [File `kenz_rescue.c`](#file-kenz_rescuec)
   - [Dokumentasi](#dokumentasi)
-- [Soal 2: The Game](#soal-2-poke-game)
+- [Soal 2: Poke MOO](#soal-2---poke-moo)
+  - [Penjelasan Umum](#penjelasan-umum-1)
+  - [File `fuse.c`](#file-fusec)
+  - [File `Dockerfile`](#file-dockerfile)
+  - [File `client.c`](#file-clientc)
+  - [Dokumentasi](#dokumentasi-1)
 
 </details>
 
@@ -502,6 +507,193 @@ Fungsi ini melakukan validasi argumen, setup environment, menyimpan source root,
 
 
 # Soal 2 - Poke MOO
+
+## Penjelasan Umum
+
+Pada soal ini, dibuat sebuah mini database service dengan konsep bahwa folder merepresentasikan database dan file CSV merepresentasikan tabel. Program dijalankan melalui TCP connection port 9000, sedangkan lapisan penyimpanan file diatur menggunakan FUSE agar direktori yang dilihat user melalui `fuse_mount` menjadi translator dari data yang benar-benar tersimpan di `encrypted_storage`. Selain itu, seluruh file yang dibuat melalui `fuse_mount` akan disimpan dalam bentuk terenkripsi menggunakan algoritma XOR dengan key `0x76` dan diberi ekstensi `.enc`. Arsitektur ini sesuai dengan deskripsi soal yang meminta koneksi TCP, FUSE translator, serta containerization dengan Docker.
+
+---
+
+## File `fuse.c`
+
+File `fuse.c` merupakan inti dari sistem filesystem terenkripsi. File ini bertugas menghubungkan dua direktori, yaitu:
+
+- `fuse_mount` sebagai mount point yang dilihat user.
+- `encrypted_storage` sebagai penyimpanan asli file yang sudah terenkripsi.
+
+### 1. Library dan Variabel Global
+
+Di bagian awal, file ini menggunakan library utama FUSE dan beberapa library standar C untuk operasi file, direktori, string, dan waktu.
+
+```
+#define FUSE_USE_VERSION 28
+#include <fuse.h>
+#include <stdio.h>
+#include <string.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <dirent.h>
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#define XOR_KEY 0x76
+char STORAGE_DIR[1024];
+```
+
+---
+
+### 2.Fungsi Enkripsi XOR
+
+Fungsi berikut digunakan untuk mengenkripsi maupun mendekripsi isi file.
+
+```
+static void xor_buffer(char *buf, size_t size)
+{
+    for (size_t i = 0; i < size; i++)
+        buf[i] ^= XOR_KEY;
+}
+```
+
+---
+
+### 3. Pengolahan Path
+
+File ini memiliki dua fungsi path utama:
+- `fullpath()`: Fungsi ini menyusun path mentah ke dalam encrypted_storage tanpa modifikasi tambahan.
+- `encpath()`: Fungsi ini menentukan path file terenkripsi. Jika yang diakses adalah file, maka nama file akan ditambahkan ekstensi `.enc`. Jika path yang diakses adalah direktori, maka direktori tetap dipakai apa adanya.
+
+```
+static void fullpath(char fpath[1024], const char *path)
+static void encpath(char fpath[1024], const char *path)
+```
+
+---
+
+### 4. Implementasi Operasi FUSE
+
+File ini mengimplementasikan operasi FUSE yang diminta pada soal
+- `xmp_getattr()`: Digunakan untuk membaca metadata file atau folder.
+- `xmp_readdir()`: Digunakan untuk menampilkan isi direktori. Pada bagian ini, nama file .enc akan ditampilkan tanpa ekstensi .enc agar user melihat nama file aslinya.
+- `xmp_mkdir()` dan `xmp_rmdir()`: Digunakan untuk membuat dan menghapus direktori.
+- `xmp_create()`: Digunakan untuk membuat file baru. File yang dibuat langsung disimpan dalam bentuk terenkripsi.
+- `xmp_open()`: Membuka file yang diminta oleh user.
+- `xmp_read()`: Membaca isi file terenkripsi lalu mendekripsinya sebelum dikirim ke user.
+- `xmp_write()`: Menulis data ke file dengan cara mengenkripsi buffer terlebih dahulu.
+- `xmp_truncate()`: Mengubah ukuran file.
+- `xmp_unlink()`: Menghapus file.
+- `xmp_utimens()`: Mengubah timestamp file.
+
+---
+
+### 5. Fungsi `main()`
+
+Bagian `main()` bertugas menentukan lokasi `encrypted_storage` secara dinamis dengan `getcwd()`:
+```
+getcwd(cwd, sizeof(cwd));
+snprintf(STORAGE_DIR, sizeof(STORAGE_DIR), "%s/encrypted_storage", cwd);
+```
+Setelah itu, filesystem dijalankan melalui:
+```
+return fuse_main(argc, argv, &xmp_oper, NULL);
+```
+
+---
+
+## File `Dockerfile`
+
+File `Dockerfile` digunakan untuk membuat image aplikasi berbasis `ubuntu:latest`, lalu menyiapkan environment agar server dapat dijalankan di dalam container. Struktur ini sesuai dengan instruksi soal yang meminta image aplikasi dibuat pada `/app` dan membuka port `9000`
+```
+FROM ubuntu:latest
+
+RUN apt update && apt install -y \
+    fuse \
+    libfuse-dev \
+    gcc \
+    make
+
+WORKDIR /app
+
+COPY . /app
+
+RUN chmod +x server
+RUN mkdir -p /app/db
+
+EXPOSE 9000
+
+CMD ["./server"]
+```
+Agar imagenya dinamakan `soal-2-modul-4-sisop`, buildnya menggunakan command:
+```
+docker build -t soal-2-modul-4-sisop .
+```
+Dan untuk run containernya sendiri mengguunakan command:
+```
+docker run -it --rm \
+  --name db_app \
+  --cap-add SYS_ADMIN \
+  --device /dev/fuse \
+  --security-opt apparmor=unconfined \
+  -p 9000:9000 \
+  -v "$PWD/server:/app/server" \
+  -v "$PWD/fuse:/app/fuse" \
+  -v "$PWD/encrypted_storage:/app/encrypted_storage" \
+  -v "$PWD/fuse_mount:/app/fuse_mount" \
+  soal-2-modul-4-sisop sh -lc '
+    mkdir -p /app/db &&
+    chmod +x /app/server /app/fuse &&
+    /app/fuse /app/fuse_mount -f &
+    sleep 1 &&
+    mount --bind /app/fuse_mount /app/db &&
+    exec /app/server
+'
+```
+
+## File `client.c`
+
+File `client.`c adalah program client berbasis TCP yang digunakan untuk berinteraksi dengan server pada port `9000`. File ini hanya bertugas sebagai perantara input user ke server dan menampilkan response dari server. Implementasinya sesuai dengan bagian soal yang meminta client untuk berkomunikasi dengan server melalui socket TCP.
+
+### 1. Inisialisasi Socket
+
+Program membuat socket TCP menggunakan:
+```
+socket(AF_INET, SOCK_STREAM, 0);
+```
+Lalu mengatur alamat server ke:
+```
+127.0.0.1:9000
+```
+
+---
+
+### 2.Koneksi ke Server
+Client melakukan koneksi ke server dengan:
+```
+connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr))
+```
+Jika koneksi berhasil, client menampilkan pesan: ``Connected to server port 9000``
+
+---
+
+### 3. Loop
+
+Di dalam loop utama:
+
+- client menampilkan prompt `db >`
+- user mengetik command
+- input dikirim ke server dengan `send()`
+- client menerima jawaban server dengan `recv()`
+- hasilnya ditampilkan ke terminal
+
+Jika user mengetik `EXIT`, program akan berhenti.
+
+---
+
+## Dokumentasi
+
+![alt text](assets/soal_2/1.jpg)
+
+![alt text](assets/soal_2/2.jpg)
 
 
 
